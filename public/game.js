@@ -12,6 +12,14 @@ const tileSize = 28;
 const rows = 20;
 const cols = 20;
 
+const assetPaths = {
+  pacman: 'assets/pacman.png',
+  ghost: 'assets/ghost.png'
+};
+
+const tintCache = new Map();
+let assets = {};
+
 const TILES = {
   WALL: '#',
   PELLET: '.',
@@ -56,6 +64,114 @@ let characterConfig = null;
 let game = null;
 let animationHandle = null;
 
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error(`Impossibile caricare l'immagine ${src}`));
+    image.src = src;
+  });
+}
+
+async function loadAssets() {
+  const entries = await Promise.all(
+    Object.entries(assetPaths).map(async ([key, path]) => {
+      try {
+        const image = await loadImage(path);
+        return [key, image];
+      } catch (err) {
+        console.warn(err.message);
+        return [key, null];
+      }
+    })
+  );
+  assets = Object.fromEntries(entries);
+}
+
+function getTintedSprite(baseImage, color) {
+  if (!baseImage) {
+    return null;
+  }
+  const key = `${baseImage.src}|${color}`;
+  if (tintCache.has(key)) {
+    return tintCache.get(key);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = baseImage.width;
+  canvas.height = baseImage.height;
+  const context = canvas.getContext('2d');
+  context.drawImage(baseImage, 0, 0);
+  context.globalCompositeOperation = 'source-atop';
+  context.fillStyle = color;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  tintCache.set(key, canvas);
+  return canvas;
+}
+
+function drawSpriteCentered(context, image, x, y, size, rotation = 0) {
+  if (!image) return;
+  context.save();
+  context.translate(x, y);
+  if (rotation !== 0) {
+    context.rotate(rotation);
+  }
+  context.drawImage(image, -size / 2, -size / 2, size, size);
+  context.restore();
+}
+
+function drawPacmanFallback(context, pac) {
+  const centerX = pac.x * tileSize;
+  const centerY = pac.y * tileSize;
+  const radius = tileSize / 2.2;
+  const mouthAngle = Math.PI / 6;
+  const rotation = headingToAngle(pac.heading || pac.direction || { x: 1, y: 0 });
+  context.save();
+  context.translate(centerX, centerY);
+  if (rotation !== 0) {
+    context.rotate(rotation);
+  }
+  context.fillStyle = pac.color;
+  context.beginPath();
+  context.moveTo(0, 0);
+  context.arc(0, 0, radius, mouthAngle, -mouthAngle, true);
+  context.closePath();
+  context.fill();
+  context.restore();
+}
+
+function drawGhostFallback(context, ghost, color) {
+  const centerX = ghost.x * tileSize;
+  const centerY = ghost.y * tileSize;
+  const radius = tileSize / 2.3;
+  const width = radius * 2;
+  const baseY = centerY + radius;
+  context.fillStyle = color;
+  context.beginPath();
+  context.arc(centerX, centerY, radius, Math.PI, 0, false);
+  context.lineTo(centerX + radius, baseY);
+  const legCount = 4;
+  const step = width / legCount;
+  for (let i = 1; i <= legCount; i += 1) {
+    const peakX = centerX + radius - step * (i - 0.5);
+    const nextX = centerX + radius - step * i;
+    const controlY = baseY + radius * 0.35;
+    context.quadraticCurveTo(peakX, controlY, nextX, baseY);
+  }
+  context.closePath();
+  context.fill();
+}
+
+function headingToAngle(heading) {
+  if (!heading) {
+    return 0;
+  }
+  if (heading.x === 1) return 0;
+  if (heading.x === -1) return Math.PI;
+  if (heading.y === 1) return Math.PI / 2;
+  if (heading.y === -1) return -Math.PI / 2;
+  return 0;
+}
+
 const directions = [
   { x: 1, y: 0 },
   { x: -1, y: 0 },
@@ -92,6 +208,12 @@ class Pacman extends Entity {
     const spawn = spawnPoints.pacman;
     super({ x: spawn.x, y: spawn.y, speed: config.speed, color: config.color });
     this.name = config.name;
+    this.heading = { x: 1, y: 0 };
+  }
+
+  reset() {
+    super.reset();
+    this.heading = { x: 1, y: 0 };
   }
 }
 
@@ -157,8 +279,8 @@ function distance(a, b) {
 }
 
 function pickGhostDirection(ghost, board, powerActive) {
-  const tileCenterX = Math.round(ghost.x);
-  const tileCenterY = Math.round(ghost.y);
+  const tileCenterX = Math.floor(ghost.x) + 0.5;
+  const tileCenterY = Math.floor(ghost.y) + 0.5;
   const isCentered = Math.abs(ghost.x - tileCenterX) < 0.1 && Math.abs(ghost.y - tileCenterY) < 0.1;
 
   if (!isCentered) {
@@ -280,6 +402,9 @@ class Game {
 
   resetPositions() {
     this.pacman.reset();
+    this.pacman.direction = { x: -1, y: 0 };
+    this.pacman.nextDirection = { x: -1, y: 0 };
+    this.pacman.heading = { x: -1, y: 0 };
     this.ghosts.forEach(ghost => {
       ghost.reset();
       ghost.isEdible = false;
@@ -319,6 +444,9 @@ class Game {
     if (!isWall(this.board, pacmanTargetX, pacmanTargetY)) {
       pac.x = pacmanTargetX;
       pac.y = pacmanTargetY;
+    }
+    if (pac.direction.x !== 0 || pac.direction.y !== 0) {
+      pac.heading = { x: pac.direction.x, y: pac.direction.y };
     }
     wrapPosition(pac);
 
@@ -425,22 +553,37 @@ class Game {
       }
     }
 
-    // Draw Pacman
+    // Draw Pacman sprite
     const pac = this.pacman;
-    ctx.fillStyle = pac.color;
-    ctx.beginPath();
-    ctx.arc(pac.x * tileSize, pac.y * tileSize, tileSize / 2.2, 0, Math.PI * 2);
-    ctx.fill();
+    const basePacSprite = assets ? assets.pacman : null;
+    const pacSprite = getTintedSprite(basePacSprite, pac.color);
+    if (pacSprite) {
+      const pacAngle = headingToAngle(pac.heading);
+      drawSpriteCentered(ctx, pacSprite, pac.x * tileSize, pac.y * tileSize, tileSize, pacAngle);
+    } else {
+      drawPacmanFallback(ctx, pac);
+    }
 
-    // Draw ghosts
+    // Draw ghosts sprites
     this.ghosts.forEach(ghost => {
-      ctx.fillStyle = ghost.isEdible && ghost.edibleOnPowerPellet ? '#4fc3f7' : ghost.color;
-      ctx.beginPath();
-      ctx.arc(ghost.x * tileSize, ghost.y * tileSize, tileSize / 2.3, Math.PI, 0);
-      ctx.lineTo(ghost.x * tileSize + tileSize / 2.3, ghost.y * tileSize + tileSize / 2.3);
-      ctx.lineTo(ghost.x * tileSize - tileSize / 2.3, ghost.y * tileSize + tileSize / 2.3);
-      ctx.closePath();
-      ctx.fill();
+      const baseColor = ghost.isEdible && ghost.edibleOnPowerPellet ? '#4fc3f7' : ghost.color;
+      const baseGhostSprite = assets ? assets.ghost : null;
+      const ghostSprite = getTintedSprite(baseGhostSprite, baseColor);
+      const size = tileSize * 0.95;
+      if (ghostSprite) {
+        drawSpriteCentered(ctx, ghostSprite, ghost.x * tileSize, ghost.y * tileSize, size);
+      } else {
+        drawGhostFallback(ctx, ghost, baseColor);
+      }
+      if (ghost.isBerserk) {
+        ctx.save();
+        ctx.strokeStyle = ghost.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(ghost.x * tileSize, ghost.y * tileSize, size / 2 + 4, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
     });
   }
 
@@ -609,7 +752,8 @@ function initForm() {
 
 async function init() {
   try {
-    characterConfig = await loadConfig();
+    const [config] = await Promise.all([loadConfig(), loadAssets()]);
+    characterConfig = config;
     renderEditor(characterConfig);
     initForm();
     game = new Game(characterConfig);
