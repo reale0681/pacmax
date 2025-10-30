@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pacmax - Pacman personalizzabile</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <header>
+        <h1>Pacmax</h1>
+        <p>Un Pacman scritto in Node.js dove ogni personaggio è modificabile. Attento al fantasma Berserker!</p>
+      </header>
+      <main>
+        <section class="game-panel">
+          <canvas id="game" width="560" height="560" aria-label="Campo di gioco Pacman" role="img"></canvas>
+          <div class="hud">
+            <div>Punteggio: <span id="score">0</span></div>
+            <div>Vite: <span id="lives">3</span></div>
+            <div id="status"></div>
+          </div>
+        </section>
+        <section class="editor-panel" aria-label="Editor dei personaggi">
+          <h2>Modifica i personaggi</h2>
+          <form id="editor-form">
+            <fieldset>
+              <legend>Pacman</legend>
+              <label>Nome <input type="text" name="pacman.name" required /></label>
+              <label>Colore <input type="color" name="pacman.color" required /></label>
+              <label>Velocità <input type="number" name="pacman.speed" min="0.05" max="0.5" step="0.005" required /></label>
+            </fieldset>
+            <fieldset>
+              <legend>Fantasmi</legend>
+              <div id="ghost-editors"></div>
+            </fieldset>
+            <button type="submit">Salva modifiche</button>
+            <div class="form-status" id="form-status" role="status" aria-live="polite"></div>
+          </form>
+        </section>
+      </main>
+    </div>
+    <template id="ghost-editor-template">
+      <div class="ghost-editor">
+        <h3 data-field="name"></h3>
+        <label>Nome visibile <input type="text" data-field="nameInput" required /></label>
+        <label>Colore <input type="color" data-field="colorInput" required /></label>
+        <label>Velocità <input type="number" data-field="speedInput" min="0.05" max="0.5" step="0.005" required /></label>
+        <label>
+          Mangia-potere rende commestibile?
+          <select data-field="edibleSelect">
+            <option value="true">Sì</option>
+            <option value="false">No</option>
+          </select>
+        </label>
+        <label class="berserk" hidden>
+          Moltiplicatore Berserk
+          <input type="number" data-field="berserkInput" min="1.1" max="4" step="0.1" />
+        </label>
+      </div>
+    </template>
+    <script src="game.js" type="module"></script>
+  </body>
+</html>

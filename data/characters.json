@@ -1,0 +1,38 @@
+{
+  "pacman": {
+    "name": "Pacmax",
+    "color": "#ffe600",
+    "speed": 0.14
+  },
+  "ghosts": [
+    {
+      "id": "blinky",
+      "name": "Blinky",
+      "color": "#ff0000",
+      "speed": 0.11,
+      "edibleOnPowerPellet": true
+    },
+    {
+      "id": "pinky",
+      "name": "Pinky",
+      "color": "#ff69b4",
+      "speed": 0.1,
+      "edibleOnPowerPellet": true
+    },
+    {
+      "id": "inky",
+      "name": "Inky",
+      "color": "#00ffff",
+      "speed": 0.105,
+      "edibleOnPowerPellet": true
+    },
+    {
+      "id": "berserker",
+      "name": "Berserker",
+      "color": "#8b00ff",
+      "speed": 0.095,
+      "edibleOnPowerPellet": false,
+      "berserkMultiplier": 1.6
+    }
+  ]
+}
