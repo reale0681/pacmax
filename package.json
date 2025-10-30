@@ -1,0 +1,13 @@
+{
+  "name": "pacmax",
+  "version": "1.0.0",
+  "description": "Pacman-like game with editable characters and a berserker ghost",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["pacman", "game"],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
